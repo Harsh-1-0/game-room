@@ -54,7 +54,7 @@ app.post("/upload-excel", upload.single("file"), async (req, res) => {
     if (!Array.isArray(data) || data.length === 0) {
       return res.status(400).json({ error: "Invalid or empty Excel file" });
     }
-    const emails = data.map((row) => row.EmailId);
+    const emails = data.map((row) => row.Emails);
     if (emails.length === 0) {
       return res.status(400).json({ error: "No emails found in the file" });
     }
@@ -74,7 +74,7 @@ app.post("/upload-excel", upload.single("file"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-app.post("/game-room", upload.single("file"), async (req, res) => {
+app.post("/gameroom", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -104,7 +104,7 @@ app.post("/game-room", upload.single("file"), async (req, res) => {
     const emailList = emailNumberMap.map(({ email }) => `'${email}'`).join(",");
 
     // Fetch IDs from USER_SLOTS based on emails
-    const query = `SELECT ID,EMAIL FROM USER_SLOTS WHERE EMAIL IN (${emailList})`;
+    const query = `SELECT ID,EMAIL FROM USERS WHERE EMAIL IN (${emailList})`;
     const { rows } = await pool.query(query);
 
     // Map the IDs with numbers
