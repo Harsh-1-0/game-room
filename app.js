@@ -23,7 +23,12 @@ const pool = new Pool({
 });
 
 // Middleware
-app.use(cors({ origin: ["http://localhost:5173", "https://webrtc-khaki-nu.vercel.app"], credentials: true }));
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "https://webrtc-khaki-nu.vercel.app"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Multer setup for file uploads
@@ -49,10 +54,7 @@ app.post("/upload-excel", upload.single("file"), async (req, res) => {
     if (!Array.isArray(data) || data.length === 0) {
       return res.status(400).json({ error: "Invalid or empty Excel file" });
     }
-
-    
-    const emails = data.map((row) => row.email).filter((email) => email);
-
+    const emails = data.map((row) => row.EmailId);
     if (emails.length === 0) {
       return res.status(400).json({ error: "No emails found in the file" });
     }
@@ -60,11 +62,68 @@ app.post("/upload-excel", upload.single("file"), async (req, res) => {
     console.log("Emails:", emails);
     const cleanedEmails = emails.map((email) => email.trim());
     console.log("Cleaned Emails:", cleanedEmails);
-    const query = `INSERT INTO user_slots (email) VALUES ${cleanedEmails.map((email) => `('${email}')`).join(",")} ON CONFLICT (email) DO NOTHING`;
+    const query = `INSERT INTO user_slots (email) VALUES ${cleanedEmails
+      .map((email) => `('${email}')`)
+      .join(",")} ON CONFLICT (email) DO NOTHING`;
 
     await pool.query(query);
 
     res.json({ message: "Emails uploaded successfully", emails });
+  } catch (error) {
+    console.error("Error uploading emails:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.post("/game-room", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Read the uploaded Excel file
+    const workbook = xlsx.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0]; // Get the first sheet
+    const sheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(sheet);
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ error: "Invalid or empty Excel file" });
+    }
+
+    const emailNumberMap = data.map((row) => ({
+      email: row.Email.trim(),
+      number: row.Number,
+    }));
+
+    if (emailNumberMap.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "No valid emails found in the file" });
+    }
+
+    const emailList = emailNumberMap.map(({ email }) => `'${email}'`).join(",");
+
+    // Fetch IDs from USER_SLOTS based on emails
+    const query = `SELECT ID,EMAIL FROM USER_SLOTS WHERE EMAIL IN (${emailList})`;
+    const { rows } = await pool.query(query);
+
+    // Map the IDs with numbers
+    const idNumberMap = rows.map((row) => {
+      const matchedEntry = emailNumberMap.find(
+        (entry) => entry.email === row.email
+      );
+      return {
+        id: row.id,
+        number: matchedEntry ? matchedEntry.number : null,
+      };
+    });
+
+    const query1 = `INSERT INTO gameroom (ID,NUMBER) VALUES ${idNumberMap
+      .map((val) => `('${val.id}',${val.number})`)
+      .join(",")}`;
+
+    await pool.query(query1);
+    res.json({ message: "Emails uploaded successfully", idNumberMap });
   } catch (error) {
     console.error("Error uploading emails:", error);
     res.status(500).json({ error: "Internal server error" });
